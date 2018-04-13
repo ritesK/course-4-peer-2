@@ -1,0 +1,45 @@
+library(dplyr)
+library(ggplot2)
+#Loading Storm Data
+
+stormdata <- read.csv("StormData.csv.bz2", header = TRUE, sep = ",")
+storm <- stormdata[c("EVTYPE", "FATALITIES", "INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")]
+str(storm)
+
+storm$PROPDMGEXP <- mapvalues(storm$PROPDMGEXP, from = c("K", "M","", "B", "m", "+", "0", "5", "6", "?", "4", "2", "3", "h", "7", "H", "-", "1", "8"), to = c(10^3, 10^6, 1, 10^9, 10^6, 0,1,10^5, 10^6, 0, 10^4, 10^2, 10^3, 10^2, 10^7, 10^2, 0, 10, 10^8))
+storm$PROPDMGEXP <- as.numeric(as.character(storm$PROPDMGEXP))
+storm$PROPDMGTOTAL <- (storm$PROPDMG * storm$PROPDMGEXP)/1000000000
+
+storm$CROPDMGEXP <- mapvalues(storm$CROPDMGEXP, from = c("","M", "K", "m", "B", "?", "0", "k","2"), to = c(1,10^6, 10^3, 10^6, 10^9, 0, 1, 10^3, 10^2))
+storm$CROPDMGEXP <- as.numeric(as.character(storm$CROPDMGEXP))
+storm$CROPDMGTOTAL <- (storm$CROPDMG * storm$CROPDMGEXP)/1000000000
+
+storm$DAMAGETOTAL <- storm$PROPDMGTOTAL + storm$CROPDMGTOTAL
+detach(package:plyr)
+
+#The event type will need to be cleaned with like types grouped together
+
+storm_type <- storm %>%
+  mutate(evtypegrp = 
+   ifelse(grepl("LIGHTNING|LIGNTNING", EVTYPE), "LIGHTNING",
+    ifelse(grepl("HAIL", EVTYPE), "HAIL",
+     ifelse(grepl("RAIN|FLOOD|WET|FLD", EVTYPE), "RAIN",
+      ifelse(grepl("SNOW|WINTER|WINTRY|BLIZZARD|SLEET|COLD|ICE|FREEZE|AVALANCHE|ICY", EVTYPE), "WINTER",
+       ifelse(grepl("TORNADO|FUNNEL", EVTYPE), "TORNADO",
+        ifelse(grepl("WIND|HURRICANE", EVTYPE), "WINDS",
+         ifelse(grepl("STORM|THUNDER|TSTM|TROPICAL +STORM", EVTYPE), "STORM",
+          ifelse(grepl("FIRE", EVTYPE), "FIRE",
+           ifelse(grepl("FOG|VISIBILITY|DARK|DUST", EVTYPE), "FOG",
+            ifelse(grepl("WAVE|SURF|SURGE|TIDE|TSUNAMI|CURRENT|SWELL", EVTYPE), "WAVE",
+             ifelse(grepl("HEAT|HIGH +TEMP|RECORD +TEMP|WARM|DRY", EVTYPE), "HEAT",
+              ifelse(grepl("VOLCAN", EVTYPE), "VOLCANO",
+               ifelse(grepl("DROUGHT", EVTYPE), "DROUGHT",
+               "OTHER")))))))))))))
+
+#result
+eventsum<-storm_type %>%
+  group_by(evtypegrp)%>%
+  summarize(damage=sum(DAMAGETOTAL), property=sum(PROPDMGTOTAL), crops=sum(CROPDMGTOTAL), fatallities=sum(FATALITIES), injuries=sum(INJURIES))
+  
+  
+  
